@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Tic Tac Toe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#EC4899',
+                        dark: '#1E293B',
+                        light: '#F1F5F9',
+                    },
+                    animation: {
+                        'bounce-slow': 'bounce 3s infinite',
+                        'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .cell {
+            transition: all 0.3s ease;
+        }
+        .cell:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .x-marker::before, .x-marker::after {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 10%;
+            background-color: #EC4899;
+            border-radius: 9999px;
+            top: 50%;
+            left: 50%;
+            transition: all 0.3s ease;
+        }
+        .x-marker::before {
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+        .x-marker::after {
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+        .o-marker::before {
+            content: '';
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            border: 10px solid #3B82F6;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+        }
+        
+        /* Background animation styles */
+        #background-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.2;
+        }
+        
+        .cursor-dot {
+            pointer-events: none;
+            position: fixed;
+            background: #EC4899;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            transition: width 0.2s, height 0.2s;
+        }
+        
+        /* Game mode selection styling */
+        .mode-btn {
+            transition: all 0.3s ease;
+        }
+        .mode-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        /* Difficulty level styling */
+        .difficulty-selector {
+            transition: all 0.3s ease;
+        }
+        
+        /* Bot thinking animation */
+        @keyframes thinking {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        .bot-thinking {
+            animation: thinking 1.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-dark min-h-screen flex flex-col items-center justify-center text-light overflow-hidden">
+    <!-- Background canvas element -->
+    <canvas id="background-canvas"></canvas>
+    <!-- Cursor effect element -->
+    <div class="cursor-dot hidden md:block"></div>
+    
+    <div class="text-center mb-4">
+        <h1 class="text-5xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text animate-pulse-slow">Tic Tac Toe</h1>
+        <p class="text-xl text-gray-400">Made by @Lakshitha</p>
+    </div>
+    
+    <!-- Game Mode Selection -->
+    <div id="game-modes" class="flex gap-4 mb-6">
+        <button id="two-player-btn" class="mode-btn active bg-gradient-to-r from-primary to-secondary px-5 py-2 rounded-lg text-white font-semibold hover:opacity-90 transition-all shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            Two Players
+        </button>
+        <button id="bot-mode-btn" class="mode-btn bg-gray-700 px-5 py-2 rounded-lg text-white font-semibold hover:opacity-90 transition-all shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            vs Bot
+        </button>
+    </div>
+    
+    <!-- Bot difficulty level -->
+    <div id="difficulty-selector" class="mb-6 hidden">
+        <div class="flex gap-2">
+            <button data-level="easy" class="difficulty-btn active bg-green-600 px-3 py-1 rounded text-white font-medium hover:bg-green-700 transition-colors">Easy</button>
+            <button data-level="medium" class="difficulty-btn bg-yellow-500 px-3 py-1 rounded text-white font-medium hover:bg-yellow-600 transition-colors">Medium</button>
+            <button data-level="hard" class="difficulty-btn bg-red-600 px-3 py-1 rounded text-white font-medium hover:bg-red-700 transition-colors">Hard</button>
+        </div>
+    </div>
+    
+    <div class="mt-2 mb-6">
+        <p id="status" class="text-2xl font-semibold mb-3">Player 1's Turn</p>
+        <div class="flex gap-4 justify-center">
+            <div class="text-center">
+                <span class="text-xl text-primary player1-label">Player 1</span>
+                <p id="scoreX" class="text-3xl font-bold">0</p>
+            </div>
+            <div class="text-center">
+                <span class="text-xl text-secondary player2-label">Player 2</span>
+                <p id="scoreO" class="text-3xl font-bold">0</p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="game-board" class="grid grid-cols-3 gap-2 w-80 h-80 md:w-96 md:h-96 bg-gray-800 p-2 rounded-lg shadow-lg">
+        <!-- Game cells will be generated by JavaScript -->
+    </div>
+    
+    <div class="mt-8">
+        <button id="new-game-btn" class="bg-gradient-to-r from-primary to-secondary px-6 py-3 rounded-lg text-white font-semibold hover:opacity-90 transition-all shadow-lg">
+            New Game
+        </button>
+    </div>
+    
+    <!-- Winner Modal -->
+    <div id="winner-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-dark p-8 rounded-xl shadow-2xl border-2 border-primary max-w-md w-full transform transition-transform duration-300 scale-95">
+            <h2 id="winner-text" class="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-primary to-secondary text-transparent bg-clip-text">Player 1 Wins!</h2>
+            <p class="text-center text-gray-300 mb-6">Congratulations on your victory!</p>
+            <div class="flex justify-center">
+                <button id="play-again" class="bg-gradient-to-r from-primary to-secondary px-6 py-3 rounded-lg text-white font-semibold hover:opacity-90 transition-all">
+                    Play Again
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Add background animation code
+        document.addEventListener('DOMContentLoaded', () => {
+            // Background canvas animation
+            const canvas = document.getElementById('background-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            let mouseX = 0;
+            let mouseY = 0;
+            let mouseRadius = 100;
+            
+            // Resize canvas to full window
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            
+            // Track mouse position
+            document.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+            
+            // Custom cursor effect
+            const cursorDot = document.querySelector('.cursor-dot');
+            
+            if (window.innerWidth > 768) { // Only on desktop
+                document.addEventListener('mousemove', (e) => {
+                    cursorDot.style.left = `${e.clientX}px`;
+                    cursorDot.style.top = `${e.clientY}px`;
+                    cursorDot.style.width = '10px';
+                    cursorDot.style.height = '10px';
+                });
+                
+                document.addEventListener('click', () => {
+                    cursorDot.style.width = '20px';
+                    cursorDot.style.height = '20px';
+                    setTimeout(() => {
+                        cursorDot.style.width = '10px';
+                        cursorDot.style.height = '10px';
+                    }, 200);
+                });
+                
+                document.querySelectorAll('button, .cell').forEach(item => {
+                    item.addEventListener('mouseenter', () => {
+                        cursorDot.style.width = '30px';
+                        cursorDot.style.height = '30px';
+                        cursorDot.style.backgroundColor = '#3B82F6';
+                    });
+                    
+                    item.addEventListener('mouseleave', () => {
+                        cursorDot.style.width = '10px';
+                        cursorDot.style.height = '10px';
+                        cursorDot.style.backgroundColor = '#EC4899';
+                    });
+                });
+            }
+            
+            // Create particles
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.size = Math.random() * 3 + 1;
+                    this.speedX = Math.random() * 1 - 0.5;
+                    this.speedY = Math.random() * 1 - 0.5;
+                    this.color = Math.random() > 0.5 ? '#3B82F6' : '#EC4899';
+                }
+                
+                update() {
+                    // Move particles
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    
+                    // Check boundaries
+                    if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+                    
+                    // Check mouse proximity
+                    const dx = mouseX - this.x;
+                    const dy = mouseY - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < mouseRadius) {
+                        const angle = Math.atan2(dy, dx);
+                        this.speedX -= Math.cos(angle) * 0.1;
+                        this.speedY -= Math.sin(angle) * 0.1;
+                    }
+                    
+                    // Speed limits
+                    this.speedX = Math.max(Math.min(this.speedX, 3), -3);
+                    this.speedY = Math.max(Math.min(this.speedY, 3), -3);
+                }
+                
+                draw() {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            function initParticles() {
+                particles = [];
+                const particleCount = Math.min(Math.floor((canvas.width * canvas.height) / 9000), 100);
+                
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle());
+                }
+            }
+            
+            function drawConnections() {
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < 100) {
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 - distance/1000})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                particles.forEach(particle => {
+                    particle.update();
+                    particle.draw();
+                });
+                
+                drawConnections();
+                
+                requestAnimationFrame(animate);
+            }
+            
+            // Initialize particles and start animation
+            initParticles();
+            animate();
+            window.addEventListener('resize', initParticles);
+            
+            // Game initialization - moved to ensure it runs after DOM is fully loaded
+            // Move game variables outside the initGame function to maintain state between resets
+            const gameBoard = document.getElementById('game-board');
+            const newGameBtn = document.getElementById('new-game-btn');
+            const statusText = document.getElementById('status');
+            const winnerModal = document.getElementById('winner-modal');
+            const winnerText = document.getElementById('winner-text');
+            const playAgainBtn = document.getElementById('play-again');
+            const scoreX = document.getElementById('scoreX');
+            const scoreO = document.getElementById('scoreO');
+            const twoPlayerBtn = document.getElementById('two-player-btn');
+            const botModeBtn = document.getElementById('bot-mode-btn');
+            const difficultySelector = document.getElementById('difficulty-selector');
+            const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+            const player1Label = document.querySelector('.player1-label');
+            const player2Label = document.querySelector('.player2-label');
+            
+            let scores = {
+                "1": 0,
+                "2": 0
+            };
+            
+            let board = ['', '', '', '', '', '', '', '', ''];
+            let currentPlayer = '1';
+            let gameActive = true;
+            let botMode = false;
+            let botDifficulty = 'easy';
+            let botThinking = false;
+            
+            const WINNING_COMBINATIONS = [
+                [0, 1, 2],
+                [3, 4, 5],
+                [6, 7, 8],
+                [0, 3, 6],
+                [1, 4, 7],
+                [2, 5, 8],
+                [0, 4, 8],
+                [2, 4, 6]
+            ];
+            
+            // Initialize board once
+            initBoard();
+            
+            // Game mode selection
+            twoPlayerBtn.addEventListener('click', () => {
+                botMode = false;
+                twoPlayerBtn.classList.add('active');
+                twoPlayerBtn.classList.remove('bg-gray-700');
+                twoPlayerBtn.classList.add('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                
+                botModeBtn.classList.remove('active');
+                botModeBtn.classList.add('bg-gray-700');
+                botModeBtn.classList.remove('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                
+                difficultySelector.classList.add('hidden');
+                
+                player1Label.textContent = 'Player 1';
+                player2Label.textContent = 'Player 2';
+                
+                resetGame(true);
+            });
+            
+            botModeBtn.addEventListener('click', () => {
+                botMode = true;
+                botModeBtn.classList.add('active');
+                botModeBtn.classList.remove('bg-gray-700');
+                botModeBtn.classList.add('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                
+                twoPlayerBtn.classList.remove('active');
+                twoPlayerBtn.classList.add('bg-gray-700');
+                twoPlayerBtn.classList.remove('bg-gradient-to-r', 'from-primary', 'to-secondary');
+                
+                difficultySelector.classList.remove('hidden');
+                
+                player1Label.textContent = 'Player';
+                player2Label.textContent = 'Bot';
+                
+                resetGame(true);
+            });
+            
+            // Difficulty level selection
+            difficultyBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    difficultyBtns.forEach(b => {
+                        b.classList.remove('active');
+                        b.style.transform = 'scale(1)';
+                        b.style.boxShadow = 'none';
+                    });
+                    
+                    btn.classList.add('active');
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.5)';
+                    
+                    botDifficulty = btn.getAttribute('data-level');
+                    resetGame(true);
+                });
+            });
+            
+            // Add event listeners to buttons directly using more reliable method
+            newGameBtn.onclick = function() {
+                resetGame(true);
+            };
+            
+            playAgainBtn.onclick = function() {
+                resetGame(false);
+            };
+            
+            // Additional event listeners to ensure the buttons work
+            playAgainBtn.addEventListener('touchstart', () => resetGame(false), { passive: true });
+            newGameBtn.addEventListener('touchstart', () => resetGame(true), { passive: true });
+            
+            function initGame() {
+                // Reset game state but keep scores
+                board = ['', '', '', '', '', '', '', '', ''];
+                gameActive = true;
+                currentPlayer = '1';
+                updateStatus();
+            }
+            
+            function initBoard() {
+                // Clear existing cells if any
+                while (gameBoard.firstChild) {
+                    gameBoard.removeChild(gameBoard.firstChild);
+                }
+                
+                // Create game board cells
+                for (let i = 0; i < 9; i++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell', 'bg-gray-700', 'rounded-md', 'flex', 'items-center', 'justify-center', 'cursor-pointer', 'relative');
+                    cell.setAttribute('data-index', i);
+                    cell.style.transition = 'all 0.3s ease';
+                    gameBoard.appendChild(cell);
+                }
+                
+                // Add event listeners to cells
+                document.querySelectorAll('.cell').forEach(cell => {
+                    cell.addEventListener('click', handleCellClick);
+                });
+            }
+            
+            function handleCellClick(e) {
+                if (botThinking) return; // Prevent clicks during bot thinking
+                
+                // Get the clicked cell or its closest parent cell
+                const cell = e.target.closest('.cell') || e.target;
+                const index = parseInt(cell.getAttribute('data-index'));
+                
+                if (isNaN(index) || board[index] !== '' || !gameActive) return;
+                
+                // Make player move
+                makeMove(index);
+                
+                // If bot mode is on and game is still active, make the bot move
+                if (botMode && gameActive && currentPlayer === '2') {
+                    botThinking = true;
+                    statusText.classList.add('bot-thinking');
+                    
+                    // Variable thinking time based on difficulty
+                    const thinkingTime = botDifficulty === 'hard' ? 1000 : 
+                                        botDifficulty === 'medium' ? 800 : 500;
+                    
+                    // Add delay to simulate bot "thinking"
+                    setTimeout(() => {
+                        makeBotMove();
+                        botThinking = false;
+                        statusText.classList.remove('bot-thinking');
+                    }, thinkingTime);
+                }
+            }
+            
+            function makeMove(index) {
+                // Update board array and UI
+                board[index] = currentPlayer;
+                
+                const cell = document.querySelector(`.cell[data-index="${index}"]`);
+                
+                if (currentPlayer === '1') {
+                    const marker = document.createElement('div');
+                    marker.classList.add('x-marker', 'absolute', 'inset-0');
+                    cell.appendChild(marker);
+                } else {
+                    const marker = document.createElement('div');
+                    marker.classList.add('o-marker', 'absolute', 'inset-0');
+                    cell.appendChild(marker);
+                }
+                
+                // Check for win or draw
+                if (checkWin()) {
+                    endGame(false);
+                    createWinningEffect();
+                } else if (checkDraw()) {
+                    endGame(true);
+                } else {
+                    // Switch player
+                    currentPlayer = currentPlayer === '1' ? '2' : '1';
+                    updateStatus();
+                }
+            }
+            
+            function makeBotMove() {
+                if (!gameActive) return;
+                
+                // Get available cells
+                const emptyCells = [];
+                for (let i = 0; i < board.length; i++) {
+                    if (board[i] === '') {
+                        emptyCells.push(i);
+                    }
+                }
+                
+                if (emptyCells.length === 0) return;
+                
+                let move;
+                
+                switch (botDifficulty) {
+                    case 'easy':
+                        move = easyBotMove(emptyCells);
+                        break;
+                    case 'medium':
+                        move = mediumBotMove(emptyCells);
+                        break;
+                    case 'hard':
+                        move = hardBotMove(emptyCells);
+                        break;
+                    default:
+                        move = easyBotMove(emptyCells);
+                }
+                
+                if (move !== null && move !== undefined) {
+                    makeMove(move);
+                }
+            }
+            
+            function easyBotMove(emptyCells) {
+                // Mostly random with just a bit of strategy (10% chance to be smart)
+                if (Math.random() < 0.1) {
+                    // Check for winning move first
+                    for (let i = 0; i < emptyCells.length; i++) {
+                        const testIndex = emptyCells[i];
+                        board[testIndex] = '2'; // Try the move
+                        
+                        const isWinning = checkWin();
+                        board[testIndex] = ''; // Undo the move
+                        
+                        if (isWinning) {
+                            return testIndex;
+                        }
+                    }
+                }
+                
+                // Otherwise random
+                return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            }
+            
+            function mediumBotMove(emptyCells) {
+                // Check for winning move
+                for (let i = 0; i < emptyCells.length; i++) {
+                    const testIndex = emptyCells[i];
+                    board[testIndex] = '2'; // Try the move
+                    
+                    const isWinning = checkWin();
+                    board[testIndex] = ''; // Undo the move
+                    
+                    if (isWinning) {
+                        return testIndex;
+                    }
+                }
+                
+                // Check for blocking move (if player can win)
+                for (let i = 0; i < emptyCells.length; i++) {
+                    const testIndex = emptyCells[i];
+                    board[testIndex] = '1'; // Try opponent's move
+                    
+                    currentPlayer = '1'; // Temporarily switch player to check win
+                    const wouldWin = checkWin();
+                    currentPlayer = '2'; // Switch back
+                    
+                    board[testIndex] = ''; // Undo the move
+                    
+                    if (wouldWin) {
+                        return testIndex; // Block player's winning move
+                    }
+                }
+                
+                // Take center if available
+                if (emptyCells.includes(4)) {
+                    return 4;
+                }
+                
+                // Take a corner if available (with 70% chance)
+                const corners = [0, 2, 6, 8].filter(corner => emptyCells.includes(corner));
+                if (corners.length > 0 && Math.random() < 0.7) {
+                    return corners[Math.floor(Math.random() * corners.length)];
+                }
+                
+                // Otherwise random
+                return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            }
+            
+            function hardBotMove(emptyCells) {
+                // First, try to win in one move
+                for (let i = 0; i < emptyCells.length; i++) {
+                    const testIndex = emptyCells[i];
+                    board[testIndex] = '2'; // Try the move
+                    
+                    const isWinning = checkWin();
+                    board[testIndex] = ''; // Undo the move
+                    
+                    if (isWinning) {
+                        return testIndex;
+                    }
+                }
+                
+                // Next, try to block player from winning
+                for (let i = 0; i < emptyCells.length; i++) {
+                    const testIndex = emptyCells[i];
+                    board[testIndex] = '1'; // Try opponent's move
+                    
+                    currentPlayer = '1'; // Temporarily switch player to check win
+                    const wouldWin = checkWin();
+                    currentPlayer = '2'; // Switch back
+                    
+                    board[testIndex] = ''; // Undo the move
+                    
+                    if (wouldWin) {
+                        return testIndex; // Block player's winning move
+                    }
+                }
+                
+                // Create a copy of the board for minimax
+                const boardCopy = [...board];
+                let bestScore = -Infinity;
+                let bestMove;
+                
+                for (let i = 0; i < emptyCells.length; i++) {
+                    const index = emptyCells[i];
+                    boardCopy[index] = '2';
+                    
+                    const score = minimaxAlphaBeta(boardCopy, 0, false, -Infinity, Infinity);
+                    
+                    boardCopy[index] = '';
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = index;
+                    }
+                }
+                
+                return bestMove;
+            }
+            
+            function minimaxAlphaBeta(boardState, depth, isMaximizing, alpha, beta) {
+                // Check terminal states
+                const result = checkGameResult(boardState);
+                
+                if (result !== null) {
+                    if (result === '2') return 10 - depth; // Bot wins, prioritize faster wins
+                    if (result === '1') return depth - 10; // Human wins, penalize
+                    if (result === 'draw') return 0; // Draw
+                }
+                
+                // Maximum depth for efficiency
+                if (depth > 5) return 0;
+                
+                if (isMaximizing) {
+                    let maxScore = -Infinity;
+                    
+                    for (let i = 0; i < boardState.length; i++) {
+                        if (boardState[i] === '') {
+                            boardState[i] = '2';
+                            const score = minimaxAlphaBeta(boardState, depth + 1, false, alpha, beta);
+                            boardState[i] = '';
+                            maxScore = Math.max(maxScore, score);
+                            
+                            alpha = Math.max(alpha, score);
+                            if (beta <= alpha) break; // Alpha-beta pruning
+                        }
+                    }
+                    
+                    return maxScore;
+                } else {
+                    let minScore = Infinity;
+                    
+                    for (let i = 0; i < boardState.length; i++) {
+                        if (boardState[i] === '') {
+                            boardState[i] = '1';
+                            const score = minimaxAlphaBeta(boardState, depth + 1, true, alpha, beta);
+                            boardState[i] = '';
+                            minScore = Math.min(minScore, score);
+                            
+                            beta = Math.min(beta, score);
+                            if (beta <= alpha) break; // Alpha-beta pruning
+                        }
+                    }
+                    
+                    return minScore;
+                }
+            }
+            
+            function checkGameResult(boardState) {
+                // Check if player 1 wins
+                if (checkWinForPlayer(boardState, '1')) return '1';
+                
+                // Check if player 2 wins
+                if (checkWinForPlayer(boardState, '2')) return '2';
+                
+                // Check for draw
+                if (boardState.every(cell => cell !== '')) return 'draw';
+                
+                // Game still in progress
+                return null;
+            }
+            
+            function checkWinForPlayer(boardState, player) {
+                return WINNING_COMBINATIONS.some(combination => {
+                    return combination.every(index => boardState[index] === player);
+                });
+            }
+            
+            function checkWin() {
+                return WINNING_COMBINATIONS.some(combination => {
+                    return combination.every(index => {
+                        return board[index] === currentPlayer;
+                    });
+                });
+            }
+            
+            function checkDraw() {
+                return board.every(cell => cell !== '');
+            }
+            
+            function createWinningEffect() {
+                // Add extra particles for winning effect
+                for (let i = 0; i < 50; i++) {
+                    particles.push(new Particle());
+                }
+                
+                // Remove extra particles after 3 seconds
+                setTimeout(() => {
+                    particles = particles.slice(0, particles.length - 50);
+                }, 3000);
+            }
+            
+            function updateStatus() {
+                if (botMode && currentPlayer === '2') {
+                    statusText.textContent = "Bot's Turn";
+                } else {
+                    statusText.textContent = `Player ${currentPlayer}'s Turn`;
+                }
+                
+                statusText.className = `text-2xl font-semibold mb-4 ${currentPlayer === '1' ? 'text-primary' : 'text-secondary'}`;
+            }
+            
+            function endGame(isDraw) {
+                gameActive = false;
+                
+                if (isDraw) {
+                    winnerText.textContent = "It's a Draw!";
+                } else {
+                    if (botMode && currentPlayer === '2') {
+                        winnerText.textContent = "Bot Wins!";
+                    } else if (botMode && currentPlayer === '1') {
+                        winnerText.textContent = "You Win!";
+                    } else {
+                        winnerText.textContent = `Player ${currentPlayer} Wins!`;
+                    }
+                    
+                    // Update score
+                    scores[currentPlayer]++;
+                    scoreX.textContent = scores['1'];
+                    scoreO.textContent = scores['2'];
+                }
+                
+                // Show modal with animation
+                setTimeout(() => {
+                    showModal();
+                }, 500);
+            }
+            
+            function showModal() {
+                winnerModal.classList.remove('opacity-0', 'pointer-events-none');
+                winnerModal.querySelector('div').classList.remove('scale-95');
+                winnerModal.querySelector('div').classList.add('scale-100');
+            }
+            
+            function hideModal() {
+                winnerModal.classList.add('opacity-0', 'pointer-events-none');
+                winnerModal.querySelector('div').classList.remove('scale-100');
+                winnerModal.querySelector('div').classList.add('scale-95');
+            }
+            
+            function resetGame(resetScores) {
+                console.log("Reset game called"); // Debug line
+                
+                // Hide modal
+                hideModal();
+                
+                // Reset scores if needed
+                if (resetScores) {
+                    scores = {
+                        "1": 0,
+                        "2": 0
+                    };
+                    scoreX.textContent = '0';
+                    scoreO.textContent = '0';
+                }
+                
+                // Reset game state
+                board = ['', '', '', '', '', '', '', '', ''];
+                gameActive = true;
+                currentPlayer = '1';
+                botThinking = false;
+                
+                // Remove bot thinking class if it exists
+                statusText.classList.remove('bot-thinking');
+                
+                // Clear all markers from cells but keep the cells themselves
+                document.querySelectorAll('.cell').forEach(cell => {
+                    while (cell.firstChild) {
+                        cell.removeChild(cell.firstChild);
+                    }
+                });
+                
+                updateStatus();
+                
+                // Re-initialize cursor effects after reset
+                if (window.innerWidth > 768) {
+                    document.querySelectorAll('button, .cell').forEach(item => {
+                        item.addEventListener('mouseenter', () => {
+                            cursorDot.style.width = '30px';
+                            cursorDot.style.height = '30px';
+                            cursorDot.style.backgroundColor = '#3B82F6';
+                        });
+                        
+                        item.addEventListener('mouseleave', () => {
+                            cursorDot.style.width = '10px';
+                            cursorDot.style.height = '10px';
+                            cursorDot.style.backgroundColor = '#EC4899';
+                        });
+                    });
+                }
+            }
+            
+            // Initialize game
+            updateStatus();
+            
+            // Add click event listener to the modal background to allow closing by clicking outside
+            winnerModal.addEventListener('click', function(e) {
+                if (e.target === winnerModal) {
+                    resetGame(false);
+                }
+            });
+            
+            // Keyboard support - press Esc to close modal or press Enter/Space to play again when modal is open
+            document.addEventListener('keydown', function(e) {
+                if (!winnerModal.classList.contains('opacity-0')) {
+                    if (e.key === 'Escape') {
+                        resetGame(false);
+                    } else if (e.key === 'Enter' || e.key === ' ') {
+                        resetGame(false);
+                    }
+                }
+            });
+
+            // Initialize difficulty button styling (ensure active state is visible)
+            document.addEventListener('DOMContentLoaded', function() {
+                // Set initial styling for difficulty buttons
+                const activeBtn = document.querySelector('.difficulty-btn.active');
+                if (activeBtn) {
+                    activeBtn.style.transform = 'scale(1.05)';
+                    activeBtn.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.5)';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
